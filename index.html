@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mein Planungsassistent - Debug</title>
+    <title>Mein Planungsassistent</title>
     <style>
         * {
             margin: 0;
@@ -65,12 +65,12 @@
             padding: 2px 0;
         }
         
-        .debug-log .error {
+        .error {
             color: #dc3545;
             font-weight: bold;
         }
         
-        .debug-log .success {
+        .success {
             color: #28a745;
             font-weight: bold;
         }
@@ -95,10 +95,6 @@
         
         .mic-button:hover {
             transform: scale(1.05);
-        }
-        
-        .mic-button:active {
-            transform: scale(0.95);
         }
         
         .mic-button.listening {
@@ -148,11 +144,6 @@
             color: #555;
         }
         
-        .help-box li:before {
-            content: "💬 ";
-            margin-right: 5px;
-        }
-        
         .tabs {
             display: flex;
             gap: 10px;
@@ -199,11 +190,6 @@
             font-size: 14px;
         }
         
-        input[type="text"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
         .add-btn {
             padding: 12px 24px;
             background: #667eea;
@@ -213,10 +199,6 @@
             cursor: pointer;
             font-size: 14px;
             font-weight: 600;
-        }
-        
-        .add-btn:hover {
-            background: #5568d3;
         }
         
         .tasks-list {
@@ -232,10 +214,6 @@
             align-items: center;
             gap: 12px;
             transition: all 0.3s;
-        }
-        
-        .task-item:hover {
-            background: #e9ecef;
         }
         
         .task-item.completed {
@@ -265,10 +243,6 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
-        }
-        
-        .delete-btn:hover {
-            background: #c0392b;
         }
         
         .empty-state {
@@ -314,12 +288,12 @@
 </head>
 <body>
     <div class="container">
-        <h1>🗓️ Mein Planungsassistent (Debug)</h1>
+        <h1>🗓️ Mein Planungsassistent</h1>
         <div class="date-display" id="dateDisplay"></div>
         
         <div class="debug-info">
             <h4>🔍 Debug-Informationen:</h4>
-            <div class="debug-log" id="debugLog"></div>
+            <div class="debug-log" id="debugLog">Starte App...</div>
         </div>
         
         <div class="voice-control">
@@ -330,10 +304,10 @@
         <div class="help-box">
             <h4>📢 Sprachbefehle:</h4>
             <ul>
-                <li>"Füge hinzu: Einkaufen" oder "Neue Aufgabe: Meeting"</li>
-                <li>"Was steht heute an?" oder "Lies meine Aufgaben vor"</li>
+                <li>"Füge hinzu: Einkaufen"</li>
+                <li>"Was steht heute an?"</li>
                 <li>"Markiere Einkaufen als erledigt"</li>
-                <li>"Lösche Meeting" oder "Entferne Arzttermin"</li>
+                <li>"Lösche Meeting"</li>
                 <li>"Wie viele Aufgaben habe ich?"</li>
             </ul>
         </div>
@@ -360,7 +334,7 @@
             
             <div class="task-input">
                 <input type="text" id="todayInput" placeholder="Neue Aufgabe für heute...">
-                <button class="add-btn" onclick="addTask('today')">+</button>
+                <button class="add-btn" onclick="window.appManager.addTask('today')">+</button>
             </div>
             
             <ul class="tasks-list" id="todayTasks"></ul>
@@ -383,7 +357,7 @@
             
             <div class="task-input">
                 <input type="text" id="weekInput" placeholder="Neue Aufgabe für die Woche...">
-                <button class="add-btn" onclick="addTask('week')">+</button>
+                <button class="add-btn" onclick="window.appManager.addTask('week')">+</button>
             </div>
             
             <ul class="tasks-list" id="weekTasks"></ul>
@@ -391,223 +365,192 @@
     </div>
 
     <script>
-        let tasks = {
-            today: [],
-            week: []
-        };
-        
-        let recognition = null;
-        let isListening = false;
-        let currentTab = 'today';
-        let debugMessages = [];
-        
-        // Debug-Logging
-        function debugLog(message, type = 'info') {
-            try {
-                const timestamp = new Date().toLocaleTimeString('de-DE');
-                debugMessages.push(`[${timestamp}] ${message}`);
-                
-                const logDiv = document.getElementById('debugLog');
-                if (!logDiv) {
-                    console.error('Debug-Log Element nicht gefunden!');
-                    return;
-                }
-                
-                const messageDiv = document.createElement('div');
-                messageDiv.className = type;
-                messageDiv.textContent = `[${timestamp}] ${message}`;
-                logDiv.appendChild(messageDiv);
-                logDiv.scrollTop = logDiv.scrollHeight;
-                
-                console.log(`[${type.toUpperCase()}] ${message}`);
-            } catch (error) {
-                console.error('Fehler im debugLog:', error);
-            }
-        }
-        
-        // Erste Debug-Meldung
-        window.addEventListener('DOMContentLoaded', function() {
-            debugLog('DOM vollständig geladen', 'success');
-            debugLog('Browser: ' + navigator.userAgent, 'info');
-            debugLog('HTTPS: ' + (location.protocol === 'https:' ? 'Ja ✓' : 'Nein ✗'), location.protocol === 'https:' ? 'success' : 'error');
-        });
-        
-        // Datum anzeigen
-        function updateDate() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            document.getElementById('dateDisplay').textContent = now.toLocaleDateString('de-DE', options);
-            debugLog('Datum aktualisiert', 'success');
-        }
-        
-        // Daten aus LocalStorage laden
-        function loadTasks() {
-            try {
-                const saved = localStorage.getItem('plannerTasks');
-                if (saved) {
-                    tasks = JSON.parse(saved);
-                    debugLog(`Aufgaben geladen: ${tasks.today.length} heute, ${tasks.week.length} diese Woche`, 'success');
-                } else {
-                    debugLog('Keine gespeicherten Aufgaben gefunden', 'info');
-                }
-                renderTasks();
-            } catch (error) {
-                debugLog(`Fehler beim Laden: ${error.message}`, 'error');
-            }
-        }
-        
-        // Daten in LocalStorage speichern
-        function saveTasks() {
-            try {
-                localStorage.setItem('plannerTasks', JSON.stringify(tasks));
-                debugLog('Aufgaben gespeichert', 'success');
-            } catch (error) {
-                debugLog(`Fehler beim Speichern: ${error.message}`, 'error');
-            }
-        }
-        
-        // Aufgabe hinzufügen
-        function addTask(type) {
-            const input = document.getElementById(type + 'Input');
-            const text = input.value.trim();
+        (function() {
+            'use strict';
             
-            if (text) {
-                tasks[type].push({
-                    id: Date.now(),
-                    text: text,
-                    completed: false
-                });
+            // App Manager
+            const appManager = {
+                tasks: { today: [], week: [] },
+                recognition: null,
+                isListening: false,
+                currentTab: 'today',
                 
-                input.value = '';
-                saveTasks();
-                renderTasks();
-                debugLog(`Aufgabe hinzugefügt: "${text}" (${type})`, 'success');
-            }
-        }
-        
-        // Aufgabe als erledigt markieren
-        function toggleTask(type, id) {
-            const task = tasks[type].find(t => t.id === id);
-            if (task) {
-                task.completed = !task.completed;
-                saveTasks();
-                renderTasks();
-                debugLog(`Aufgabe ${task.completed ? 'erledigt' : 'wieder geöffnet'}: "${task.text}"`, 'success');
-            }
-        }
-        
-        // Aufgabe löschen
-        function deleteTask(type, id) {
-            const task = tasks[type].find(t => t.id === id);
-            const taskText = task ? task.text : 'unbekannt';
-            tasks[type] = tasks[type].filter(t => t.id !== id);
-            saveTasks();
-            renderTasks();
-            debugLog(`Aufgabe gelöscht: "${taskText}"`, 'success');
-        }
-        
-        // Aufgaben rendern
-        function renderTasks() {
-            ['today', 'week'].forEach(type => {
-                const list = document.getElementById(type + 'Tasks');
-                const taskList = tasks[type];
+                debugLog: function(message, type) {
+                    type = type || 'info';
+                    try {
+                        const timestamp = new Date().toLocaleTimeString('de-DE');
+                        const logDiv = document.getElementById('debugLog');
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = type;
+                        messageDiv.textContent = '[' + timestamp + '] ' + message;
+                        logDiv.appendChild(messageDiv);
+                        logDiv.scrollTop = logDiv.scrollHeight;
+                        console.log('[' + type + '] ' + message);
+                    } catch (e) {
+                        console.error('Debug-Log Fehler:', e);
+                    }
+                },
                 
-                if (taskList.length === 0) {
-                    list.innerHTML = '<div class="empty-state">Keine Aufgaben vorhanden</div>';
-                } else {
-                    list.innerHTML = taskList.map(task => `
-                        <li class="task-item ${task.completed ? 'completed' : ''}">
-                            <input type="checkbox" class="checkbox" 
-                                   ${task.completed ? 'checked' : ''} 
-                                   onchange="toggleTask('${type}', ${task.id})">
-                            <span class="task-text">${task.text}</span>
-                            <button class="delete-btn" onclick="deleteTask('${type}', ${task.id})">×</button>
-                        </li>
-                    `).join('');
-                }
+                updateDate: function() {
+                    const now = new Date();
+                    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                    document.getElementById('dateDisplay').textContent = now.toLocaleDateString('de-DE', options);
+                },
                 
-                // Statistiken aktualisieren
-                const total = taskList.length;
-                const completed = taskList.filter(t => t.completed).length;
-                document.getElementById(type + 'Total').textContent = total;
-                document.getElementById(type + 'Completed').textContent = completed;
-            });
-        }
-        
-        // Tab-Wechsel
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabName = tab.dataset.tab;
-                currentTab = tabName;
+                loadTasks: function() {
+                    try {
+                        const saved = localStorage.getItem('plannerTasks');
+                        if (saved) {
+                            this.tasks = JSON.parse(saved);
+                            this.debugLog('Aufgaben geladen: ' + this.tasks.today.length + ' heute, ' + this.tasks.week.length + ' Woche', 'success');
+                        }
+                        this.renderTasks();
+                    } catch (e) {
+                        this.debugLog('Fehler beim Laden: ' + e.message, 'error');
+                    }
+                },
                 
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                saveTasks: function() {
+                    try {
+                        localStorage.setItem('plannerTasks', JSON.stringify(this.tasks));
+                    } catch (e) {
+                        this.debugLog('Fehler beim Speichern: ' + e.message, 'error');
+                    }
+                },
                 
-                tab.classList.add('active');
-                document.getElementById(tabName).classList.add('active');
-                debugLog(`Tab gewechselt zu: ${tabName}`, 'info');
-            });
-        });
-        
-        // Enter-Taste für Input
-        document.getElementById('todayInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') addTask('today');
-        });
-        
-        document.getElementById('weekInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') addTask('week');
-        });
-        
-        // Spracherkennung initialisieren
-        function initSpeechRecognition() {
-            debugLog('Starte Spracherkennung-Initialisierung...', 'info');
-            
-            // Prüfe Browser-Unterstützung
-            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-                debugLog('FEHLER: Spracherkennung nicht verfügbar in diesem Browser', 'error');
-                document.getElementById('status').textContent = '❌ Spracherkennung nicht verfügbar';
-                document.getElementById('micButton').disabled = true;
-                return;
-            }
-            
-            debugLog('Spracherkennung wird unterstützt', 'success');
-            
-            try {
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                recognition = new SpeechRecognition();
-                debugLog('SpeechRecognition-Objekt erstellt', 'success');
+                addTask: function(type) {
+                    const input = document.getElementById(type + 'Input');
+                    const text = input.value.trim();
+                    if (text) {
+                        this.tasks[type].push({ id: Date.now(), text: text, completed: false });
+                        input.value = '';
+                        this.saveTasks();
+                        this.renderTasks();
+                        this.debugLog('Aufgabe hinzugefügt: ' + text, 'success');
+                    }
+                },
                 
-                recognition.lang = 'de-DE';
-                recognition.continuous = false;
-                recognition.interimResults = false;
-                recognition.maxAlternatives = 1;
+                toggleTask: function(type, id) {
+                    const task = this.tasks[type].find(function(t) { return t.id === id; });
+                    if (task) {
+                        task.completed = !task.completed;
+                        this.saveTasks();
+                        this.renderTasks();
+                    }
+                },
                 
-                debugLog('Spracherkennung konfiguriert: de-DE, continuous=false', 'success');
+                deleteTask: function(type, id) {
+                    this.tasks[type] = this.tasks[type].filter(function(t) { return t.id !== id; });
+                    this.saveTasks();
+                    this.renderTasks();
+                },
                 
-                recognition.onstart = function() {
-                    debugLog('🎤 Spracherkennung GESTARTET', 'success');
-                    isListening = true;
-                    document.getElementById('micButton').classList.add('listening');
-                    document.getElementById('status').textContent = '🎤 Ich höre zu...';
-                };
+                renderTasks: function() {
+                    const self = this;
+                    ['today', 'week'].forEach(function(type) {
+                        const list = document.getElementById(type + 'Tasks');
+                        const taskList = self.tasks[type];
+                        
+                        if (taskList.length === 0) {
+                            list.innerHTML = '<div class="empty-state">Keine Aufgaben vorhanden</div>';
+                        } else {
+                            list.innerHTML = taskList.map(function(task) {
+                                return '<li class="task-item ' + (task.completed ? 'completed' : '') + '">' +
+                                    '<input type="checkbox" class="checkbox" ' + (task.completed ? 'checked' : '') +
+                                    ' onchange="window.appManager.toggleTask(\'' + type + '\', ' + task.id + ')">' +
+                                    '<span class="task-text">' + task.text + '</span>' +
+                                    '<button class="delete-btn" onclick="window.appManager.deleteTask(\'' + type + '\', ' + task.id + ')">×</button>' +
+                                    '</li>';
+                            }).join('');
+                        }
+                        
+                        const total = taskList.length;
+                        const completed = taskList.filter(function(t) { return t.completed; }).length;
+                        document.getElementById(type + 'Total').textContent = total;
+                        document.getElementById(type + 'Completed').textContent = completed;
+                    });
+                },
                 
-                recognition.onend = function() {
-                    debugLog('⏹️ Spracherkennung BEENDET', 'info');
-                    isListening = false;
-                    document.getElementById('micButton').classList.remove('listening');
-                    document.getElementById('status').textContent = 'Klicke auf das Mikrofon zum Sprechen';
-                };
-                
-                recognition.onresult = function(event) {
-                    const transcript = event.results[0][0].transcript;
-                    const confidence = event.results[0][0].confidence;
-                    debugLog(`Erkannt: "${transcript}" (Sicherheit: ${(confidence * 100).toFixed(0)}%)`, 'success');
-                    document.getElementById('status').textContent = `💬 Verstanden: "${transcript}"`;
+                initSpeechRecognition: function() {
+                    const self = this;
+                    this.debugLog('Prüfe Spracherkennung...', 'info');
                     
-                    setTimeout(() => {
-                        processVoiceCommand(transcript.toLowerCase());
-                    }, 500);
-                };
+                    if (!window.webkitSpeechRecognition && !window.SpeechRecognition) {
+                        this.debugLog('Spracherkennung nicht verfügbar', 'error');
+                        document.getElementById('status').textContent = '❌ Spracherkennung nicht verfügbar';
+                        document.getElementById('micButton').disabled = true;
+                        return;
+                    }
+                    
+                    try {
+                        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                        this.recognition = new SpeechRecognition();
+                        this.recognition.lang = 'de-DE';
+                        this.recognition.continuous = false;
+                        this.recognition.interimResults = false;
+                        
+                        this.recognition.onstart = function() {
+                            self.debugLog('Spracherkennung gestartet', 'success');
+                            self.isListening = true;
+                            document.getElementById('micButton').classList.add('listening');
+                            document.getElementById('status').textContent = '🎤 Ich höre zu...';
+                        };
+                        
+                        this.recognition.onend = function() {
+                            self.debugLog('Spracherkennung beendet', 'info');
+                            self.isListening = false;
+                            document.getElementById('micButton').classList.remove('listening');
+                            document.getElementById('status').textContent = 'Klicke auf das Mikrofon';
+                        };
+                        
+                        this.recognition.onresult = function(event) {
+                            const transcript = event.results[0][0].transcript;
+                            self.debugLog('Erkannt: "' + transcript + '"', 'success');
+                            document.getElementById('status').textContent = '💬 "' + transcript + '"';
+                            setTimeout(function() {
+                                self.processVoiceCommand(transcript.toLowerCase());
+                            }, 500);
+                        };
+                        
+                        this.recognition.onerror = function(event) {
+                            self.debugLog('Fehler: ' + event.error, 'error');
+                            document.getElementById('status').textContent = 'Fehler: ' + event.error;
+                        };
+                        
+                        this.debugLog('Spracherkennung bereit', 'success');
+                        document.getElementById('status').textContent = '✅ Bereit! Klicke aufs Mikrofon';
+                        
+                    } catch (e) {
+                        this.debugLog('Fehler bei Init: ' + e.message, 'error');
+                        document.getElementById('status').textContent = '❌ Fehler';
+                        document.getElementById('micButton').disabled = true;
+                    }
+                },
                 
-                recognition.onerror = function(event) {
-         
+                processVoiceCommand: function(text) {
+                    const self = this;
+                    this.debugLog('Verarbeite: "' + text + '"', 'info');
+                    
+                    // Vorlesen
+                    if (text.indexOf('lies') !== -1 || text.indexOf('was steht') !== -1) {
+                        this.readTasksList(text.indexOf('woche') !== -1 ? 'week' : 'today');
+                        return;
+                    }
+                    
+                    // Statistik
+                    if (text.indexOf('wie viele') !== -1 || text.indexOf('übersicht') !== -1) {
+                        const msg = 'Du hast ' + this.tasks.today.length + ' Aufgaben für heute und ' +
+                                    this.tasks.week.length + ' für die Woche.';
+                        this.speak(msg);
+                        return;
+                    }
+                    
+                    // Hinzufügen
+                    if (text.indexOf('füge hinzu') !== -1 || text.indexOf('neue aufgabe') !== -1) {
+                        let taskText = text.replace(/füge hinzu|neue aufgabe|erstelle|aufgabe|:/g, '').trim();
+                        const targetType = text.indexOf('woche') !== -1 ? 'week' : 'today';
+                        taskText = taskText.replace(/woche|heute/g, '').trim();
+                        
+                        if (taskText) {
+                            this.tasks[targetType].push({ id: Date.now(), text: taskText, completed: false });
+                            this.sav
