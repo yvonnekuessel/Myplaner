@@ -78,8 +78,38 @@
         .status {
             margin-top: 15px;
             color: #666;
-            min-height: 24px;
+            min-height: 60px;
             font-style: italic;
+            line-height: 1.5;
+        }
+        
+        .help-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        
+        .help-box h4 {
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+        
+        .help-box ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .help-box li {
+            padding: 4px 0;
+            color: #555;
+        }
+        
+        .help-box li:before {
+            content: "💬 ";
+            margin-right: 5px;
         }
         
         .tabs {
@@ -251,6 +281,17 @@
             <div class="status" id="status">Klicke auf das Mikrofon zum Sprechen</div>
         </div>
         
+        <div class="help-box">
+            <h4>📢 Sprachbefehle:</h4>
+            <ul>
+                <li>"Füge hinzu: Einkaufen" oder "Neue Aufgabe: Meeting"</li>
+                <li>"Was steht heute an?" oder "Lies meine Aufgaben vor"</li>
+                <li>"Markiere Einkaufen als erledigt"</li>
+                <li>"Lösche Meeting" oder "Entferne Arzttermin"</li>
+                <li>"Wie viele Aufgaben habe ich?"</li>
+            </ul>
+        </div>
+        
         <div class="tabs">
             <button class="tab active" data-tab="today">Heute</button>
             <button class="tab" data-tab="week">Diese Woche</button>
@@ -311,6 +352,7 @@
         
         let recognition;
         let isListening = false;
+        let currentTab = 'today';
         
         // Datum anzeigen
         function updateDate() {
@@ -400,6 +442,7 @@
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const tabName = tab.dataset.tab;
+                currentTab = tabName;
                 
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -440,55 +483,117 @@
                 };
                 
                 recognition.onresult = (event) => {
-                    const transcript = event.results[0][0].transcript.toLowerCase();
-                    document.getElementById('status').textContent = `Verstanden: "${transcript}"`;
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('status').textContent = `💬 Verstanden: "${transcript}"`;
                     
-                    processVoiceCommand(transcript);
+                    setTimeout(() => {
+                        processVoiceCommand(transcript.toLowerCase());
+                    }, 500);
                 };
                 
                 recognition.onerror = (event) => {
                     console.error('Spracherkennungsfehler:', event.error);
-                    document.getElementById('status').textContent = 'Fehler bei der Spracherkennung';
+                    document.getElementById('status').textContent = 'Fehler bei der Spracherkennung. Bitte erneut versuchen.';
                 };
                 
             } else {
-                document.getElementById('status').textContent = 'Spracherkennung nicht verfügbar';
+                document.getElementById('status').textContent = '⚠️ Spracherkennung nicht verfügbar. Bitte verwende Chrome oder Safari.';
             }
         }
         
         // Sprachbefehl verarbeiten
         function processVoiceCommand(text) {
+            console.log('Verarbeite Befehl:', text);
+            
+            // Aufgaben vorlesen
+            if (text.includes('lies') || text.includes('was steht') || text.includes('welche aufgaben') || 
+                text.includes('vorlesen') || text.includes('zeig mir')) {
+                
+                if (text.includes('woche')) {
+                    readTasksList('week');
+                } else {
+                    readTasksList('today');
+                }
+                return;
+            }
+            
+            // Statistik abfragen
+            if (text.includes('wie viele') || text.includes('übersicht') || text.includes('zusammenfassung')) {
+                const todayTotal = tasks.today.length;
+                const todayDone = tasks.today.filter(t => t.completed).length;
+                const weekTotal = tasks.week.length;
+                const weekDone = tasks.week.filter(t => t.completed).length;
+                
+                speak(`Du hast ${todayTotal} Aufgaben für heute, davon sind ${todayDone} erledigt. 
+                       Für die Woche hast du ${weekTotal} Aufgaben, davon sind ${weekDone} erledigt.`);
+                return;
+            }
+            
+            // Aufgabe als erledigt markieren
+            if (text.includes('markiere') || text.includes('erledigt') || text.includes('abhaken')) {
+                const taskText = text
+                    .replace(/markiere|als erledigt|erledigt|abhaken/gi, '')
+                    .trim();
+                
+                if (completeTaskByName(taskText)) {
+                    speak(`Aufgabe "${taskText}" wurde als erledigt markiert.`);
+                } else {
+                    speak(`Ich konnte keine Aufgabe mit diesem Namen finden.`);
+                }
+                return;
+            }
+            
+            // Aufgabe löschen
+            if (text.includes('lösche') || text.includes('entferne') || text.includes('streiche')) {
+                const taskText = text
+                    .replace(/lösche|entferne|streiche|aufgabe/gi, '')
+                    .trim();
+                
+                if (deleteTaskByName(taskText)) {
+                    speak(`Aufgabe "${taskText}" wurde gelöscht.`);
+                } else {
+                    speak(`Ich konnte keine Aufgabe mit diesem Namen finden.`);
+                }
+                return;
+            }
+            
             // Aufgabe hinzufügen
-            if (text.includes('heute') || text.includes('aufgabe')) {
-                const taskText = text.replace(/heute|aufgabe|füge hinzu|add|erstelle/gi, '').trim();
+            if (text.includes('füge hinzu') || text.includes('neue aufgabe') || 
+                text.includes('erstelle') || text.includes('add')) {
+                
+                let taskText = text
+                    .replace(/füge hinzu|neue aufgabe|erstelle|add|aufgabe/gi, '')
+                    .replace(/:/g, '')
+                    .trim();
+                
+                let targetType = 'today';
+                
+                if (text.includes('woche') || text.includes('diese woche')) {
+                    targetType = 'week';
+                    taskText = taskText.replace(/woche|diese woche/gi, '').trim();
+                } else if (text.includes('heute')) {
+                    taskText = taskText.replace(/heute/gi, '').trim();
+                }
+                
                 if (taskText) {
-                    tasks.today.push({
+                    tasks[targetType].push({
                         id: Date.now(),
                         text: taskText,
                         completed: false
                     });
                     saveTasks();
                     renderTasks();
-                    speak('Aufgabe für heute hinzugefügt: ' + taskText);
+                    
+                    const timeframe = targetType === 'today' ? 'heute' : 'für die Woche';
+                    speak(`Aufgabe "${taskText}" wurde ${timeframe} hinzugefügt.`);
+                } else {
+                    speak('Ich konnte keine Aufgabe verstehen. Bitte versuche es erneut.');
                 }
-            } else if (text.includes('woche')) {
-                const taskText = text.replace(/woche|aufgabe|füge hinzu|add|erstelle/gi, '').trim();
-                if (taskText) {
-                    tasks.week.push({
-                        id: Date.now(),
-                        text: taskText,
-                        completed: false
-                    });
-                    saveTasks();
-                    renderTasks();
-                    speak('Aufgabe für die Woche hinzugefügt: ' + taskText);
-                }
-            } else if (text.includes('übersicht') || text.includes('zusammenfassung')) {
-                const todayCount = tasks.today.length;
-                const weekCount = tasks.week.length;
-                speak(`Du hast ${todayCount} Aufgaben für heute und ${weekCount} Aufgaben für die Woche.`);
-            } else {
-                // Standardmäßig zu "heute" hinzufügen
+                return;
+            }
+            
+            // Standardmäßig als neue Aufgabe für heute hinzufügen
+            if (text.length > 3) {
                 tasks.today.push({
                     id: Date.now(),
                     text: text,
@@ -496,37 +601,4 @@
                 });
                 saveTasks();
                 renderTasks();
-                speak('Aufgabe hinzugefügt: ' + text);
-            }
-        }
-        
-        // Text-to-Speech
-        function speak(text) {
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'de-DE';
-                utterance.rate = 1.0;
-                window.speechSynthesis.speak(utterance);
-            }
-        }
-        
-        // Mikrofon-Button
-        document.getElementById('micButton').addEventListener('click', () => {
-            if (recognition) {
-                if (isListening) {
-                    recognition.stop();
-                } else {
-                    recognition.start();
-                }
-            } else {
-                alert('Spracherkennung ist in deinem Browser nicht verfügbar. Bitte verwende Chrome oder Safari.');
-            }
-        });
-        
-        // Initialisierung
-        updateDate();
-        loadTasks();
-        initSpeechRecognition();
-    </script>
-</body>
-</html>
+                speak(`Aufgab
