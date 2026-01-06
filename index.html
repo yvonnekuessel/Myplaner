@@ -403,18 +403,34 @@
         
         // Debug-Logging
         function debugLog(message, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString('de-DE');
-            debugMessages.push(`[${timestamp}] ${message}`);
-            
-            const logDiv = document.getElementById('debugLog');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = type;
-            messageDiv.textContent = `[${timestamp}] ${message}`;
-            logDiv.appendChild(messageDiv);
-            logDiv.scrollTop = logDiv.scrollHeight;
-            
-            console.log(`[${type.toUpperCase()}] ${message}`);
+            try {
+                const timestamp = new Date().toLocaleTimeString('de-DE');
+                debugMessages.push(`[${timestamp}] ${message}`);
+                
+                const logDiv = document.getElementById('debugLog');
+                if (!logDiv) {
+                    console.error('Debug-Log Element nicht gefunden!');
+                    return;
+                }
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = type;
+                messageDiv.textContent = `[${timestamp}] ${message}`;
+                logDiv.appendChild(messageDiv);
+                logDiv.scrollTop = logDiv.scrollHeight;
+                
+                console.log(`[${type.toUpperCase()}] ${message}`);
+            } catch (error) {
+                console.error('Fehler im debugLog:', error);
+            }
         }
+        
+        // Erste Debug-Meldung
+        window.addEventListener('DOMContentLoaded', function() {
+            debugLog('DOM vollständig geladen', 'success');
+            debugLog('Browser: ' + navigator.userAgent, 'info');
+            debugLog('HTTPS: ' + (location.protocol === 'https:' ? 'Ja ✓' : 'Nein ✗'), location.protocol === 'https:' ? 'success' : 'error');
+        });
         
         // Datum anzeigen
         function updateDate() {
@@ -594,18 +610,4 @@
                 };
                 
                 recognition.onerror = function(event) {
-                    debugLog(`❌ FEHLER: ${event.error} - ${event.message || 'Keine Details'}`, 'error');
-                    
-                    let errorMsg = 'Fehler: ';
-                    switch(event.error) {
-                        case 'no-speech':
-                            errorMsg += 'Keine Sprache erkannt';
-                            break;
-                        case 'audio-capture':
-                            errorMsg += 'Kein Mikrofon gefunden';
-                            break;
-                        case 'not-allowed':
-                            errorMsg += 'Mikrofonzugriff verweigert';
-                            break;
-                        case 'network':
-                            error
+         
