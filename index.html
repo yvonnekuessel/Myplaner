@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mein Planungsassistent</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .date-display {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .voice-control {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .mic-button {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .mic-button:hover {
+            transform: scale(1.05);
+        }
+        
+        .mic-button:active {
+            transform: scale(0.95);
+        }
+        
+        .mic-button.listening {
+            background: #e74c3c;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4); }
+            50% { box-shadow: 0 4px 30px rgba(231, 76, 60, 0.8); }
+        }
+        
+        .status {
+            margin-top: 15px;
+            color: #666;
+            min-height: 24px;
+            font-style: italic;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 16px;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .task-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .add-btn {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .add-btn:hover {
+            background: #5568d3;
+        }
+        
+        .tasks-list {
+            list-style: none;
+        }
+        
+        .task-item {
+            background: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s;
+        }
+        
+        .task-item:hover {
+            background: #e9ecef;
+        }
+        
+        .task-item.completed {
+            opacity: 0.6;
+        }
+        
+        .task-item.completed .task-text {
+            text-decoration: line-through;
+        }
+        
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .task-text {
+            flex: 1;
+            color: #333;
+        }
+        
+        .delete-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .delete-btn:hover {
+            background: #c0392b;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+        }
+        
+        .summary {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .summary h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .summary-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            flex: 1;
+            min-width: 120px;
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗓️ Mein Planungsassistent</h1>
+        <div class="date-display" id="dateDisplay"></div>
+        
+        <div class="voice-control">
+            <button class="mic-button" id="micButton">🎤</button>
+            <div class="status" id="status">Klicke auf das Mikrofon zum Sprechen</div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="today">Heute</button>
+            <button class="tab" data-tab="week">Diese Woche</button>
+        </div>
+        
+        <div class="tab-content active" id="today">
+            <div class="summary">
+                <h3>Tagesübersicht</h3>
+                <div class="summary-stats">
+                    <div class="stat">
+                        <div class="stat-number" id="todayTotal">0</div>
+                        <div class="stat-label">Aufgaben</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" id="todayCompleted">0</div>
+                        <div class="stat-label">Erledigt</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="task-input">
+                <input type="text" id="todayInput" placeholder="Neue Aufgabe für heute...">
+                <button class="add-btn" onclick="addTask('today')">+</button>
+            </div>
+            
+            <ul class="tasks-list" id="todayTasks"></ul>
+        </div>
+        
+        <div class="tab-content" id="week">
+            <div class="summary">
+                <h3>Wochenübersicht</h3>
+                <div class="summary-stats">
+                    <div class="stat">
+                        <div class="stat-number" id="weekTotal">0</div>
+                        <div class="stat-label">Aufgaben</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-number" id="weekCompleted">0</div>
+                        <div class="stat-label">Erledigt</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="task-input">
+                <input type="text" id="weekInput" placeholder="Neue Aufgabe für die Woche...">
+                <button class="add-btn" onclick="addTask('week')">+</button>
+            </div>
+            
+            <ul class="tasks-list" id="weekTasks"></ul>
+        </div>
+    </div>
+
+    <script>
+        let tasks = {
+            today: [],
+            week: []
+        };
+        
+        let recognition;
+        let isListening = false;
+        
+        // Datum anzeigen
+        function updateDate() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('dateDisplay').textContent = now.toLocaleDateString('de-DE', options);
+        }
+        
+        // Daten aus LocalStorage laden
+        function loadTasks() {
+            const saved = localStorage.getItem('plannerTasks');
+            if (saved) {
+                tasks = JSON.parse(saved);
+                renderTasks();
+            }
+        }
+        
+        // Daten in LocalStorage speichern
+        function saveTasks() {
+            localStorage.setItem('plannerTasks', JSON.stringify(tasks));
+        }
+        
+        // Aufgabe hinzufügen
+        function addTask(type) {
+            const input = document.getElementById(type + 'Input');
+            const text = input.value.trim();
+            
+            if (text) {
+                tasks[type].push({
+                    id: Date.now(),
+                    text: text,
+                    completed: false
+                });
+                
+                input.value = '';
+                saveTasks();
+                renderTasks();
+            }
+        }
+        
+        // Aufgabe als erledigt markieren
+        function toggleTask(type, id) {
+            const task = tasks[type].find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasks();
+                renderTasks();
+            }
+        }
+        
+        // Aufgabe löschen
+        function deleteTask(type, id) {
+            tasks[type] = tasks[type].filter(t => t.id !== id);
+            saveTasks();
+            renderTasks();
+        }
+        
+        // Aufgaben rendern
+        function renderTasks() {
+            ['today', 'week'].forEach(type => {
+                const list = document.getElementById(type + 'Tasks');
+                const taskList = tasks[type];
+                
+                if (taskList.length === 0) {
+                    list.innerHTML = '<div class="empty-state">Keine Aufgaben vorhanden</div>';
+                } else {
+                    list.innerHTML = taskList.map(task => `
+                        <li class="task-item ${task.completed ? 'completed' : ''}">
+                            <input type="checkbox" class="checkbox" 
+                                   ${task.completed ? 'checked' : ''} 
+                                   onchange="toggleTask('${type}', ${task.id})">
+                            <span class="task-text">${task.text}</span>
+                            <button class="delete-btn" onclick="deleteTask('${type}', ${task.id})">×</button>
+                        </li>
+                    `).join('');
+                }
+                
+                // Statistiken aktualisieren
+                const total = taskList.length;
+                const completed = taskList.filter(t => t.completed).length;
+                document.getElementById(type + 'Total').textContent = total;
+                document.getElementById(type + 'Completed').textContent = completed;
+            });
+        }
+        
+        // Tab-Wechsel
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabName = tab.dataset.tab;
+                
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                tab.classList.add('active');
+                document.getElementById(tabName).classList.add('active');
+            });
+        });
+        
+        // Enter-Taste für Input
+        document.getElementById('todayInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTask('today');
+        });
+        
+        document.getElementById('weekInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTask('week');
+        });
+        
+        // Spracherkennung
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.lang = 'de-DE';
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                
+                recognition.onstart = () => {
+                    isListening = true;
+                    document.getElementById('micButton').classList.add('listening');
+                    document.getElementById('status').textContent = '🎤 Ich höre zu...';
+                };
+                
+                recognition.onend = () => {
+                    isListening = false;
+                    document.getElementById('micButton').classList.remove('listening');
+                    document.getElementById('status').textContent = 'Klicke auf das Mikrofon zum Sprechen';
+                };
+                
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript.toLowerCase();
+                    document.getElementById('status').textContent = `Verstanden: "${transcript}"`;
+                    
+                    processVoiceCommand(transcript);
+                };
+                
+                recognition.onerror = (event) => {
+                    console.error('Spracherkennungsfehler:', event.error);
+                    document.getElementById('status').textContent = 'Fehler bei der Spracherkennung';
+                };
+                
+            } else {
+                document.getElementById('status').textContent = 'Spracherkennung nicht verfügbar';
+            }
+        }
+        
+        // Sprachbefehl verarbeiten
+        function processVoiceCommand(text) {
+            // Aufgabe hinzufügen
+            if (text.includes('heute') || text.includes('aufgabe')) {
+                const taskText = text.replace(/heute|aufgabe|füge hinzu|add|erstelle/gi, '').trim();
+                if (taskText) {
+                    tasks.today.push({
+                        id: Date.now(),
+                        text: taskText,
+                        completed: false
+                    });
+                    saveTasks();
+                    renderTasks();
+                    speak('Aufgabe für heute hinzugefügt: ' + taskText);
+                }
+            } else if (text.includes('woche')) {
+                const taskText = text.replace(/woche|aufgabe|füge hinzu|add|erstelle/gi, '').trim();
+                if (taskText) {
+                    tasks.week.push({
+                        id: Date.now(),
+                        text: taskText,
+                        completed: false
+                    });
+                    saveTasks();
+                    renderTasks();
+                    speak('Aufgabe für die Woche hinzugefügt: ' + taskText);
+                }
+            } else if (text.includes('übersicht') || text.includes('zusammenfassung')) {
+                const todayCount = tasks.today.length;
+                const weekCount = tasks.week.length;
+                speak(`Du hast ${todayCount} Aufgaben für heute und ${weekCount} Aufgaben für die Woche.`);
+            } else {
+                // Standardmäßig zu "heute" hinzufügen
+                tasks.today.push({
+                    id: Date.now(),
+                    text: text,
+                    completed: false
+                });
+                saveTasks();
+                renderTasks();
+                speak('Aufgabe hinzugefügt: ' + text);
+            }
+        }
+        
+        // Text-to-Speech
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'de-DE';
+                utterance.rate = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // Mikrofon-Button
+        document.getElementById('micButton').addEventListener('click', () => {
+            if (recognition) {
+                if (isListening) {
+                    recognition.stop();
+                } else {
+                    recognition.start();
+                }
+            } else {
+                alert('Spracherkennung ist in deinem Browser nicht verfügbar. Bitte verwende Chrome oder Safari.');
+            }
+        });
+        
+        // Initialisierung
+        updateDate();
+        loadTasks();
+        initSpeechRecognition();
+    </script>
+</body>
+</html>
