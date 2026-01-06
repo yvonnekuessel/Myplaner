@@ -553,4 +553,134 @@
                         
                         if (taskText) {
                             this.tasks[targetType].push({ id: Date.now(), text: taskText, completed: false });
-                            this.sav
+                            this.saveTasks();
+                            this.renderTasks();
+                            this.speak('Aufgabe hinzugefügt: ' + taskText);
+                        }
+                        return;
+                    }
+                    
+                    // Standard: hinzufügen
+                    if (text.length > 3) {
+                        this.tasks.today.push({ id: Date.now(), text: text, completed: false });
+                        this.saveTasks();
+                        this.renderTasks();
+                        this.speak('Aufgabe hinzugefügt: ' + text);
+                    }
+                },
+                
+                readTasksList: function(type) {
+                    const taskList = this.tasks[type];
+                    const timeframe = type === 'today' ? 'heute' : 'diese Woche';
+                    
+                    if (taskList.length === 0) {
+                        this.speak('Du hast keine Aufgaben für ' + timeframe);
+                        return;
+                    }
+                    
+                    let message = 'Du hast ' + taskList.length + ' Aufgaben für ' + timeframe + '. ';
+                    const openTasks = taskList.filter(function(t) { return !t.completed; });
+                    
+                    if (openTasks.length > 0) {
+                        message += 'Noch zu erledigen: ';
+                        openTasks.forEach(function(task, i) {
+                            message += (i + 1) + '. ' + task.text + '. ';
+                        });
+                    }
+                    
+                    this.speak(message);
+                },
+                
+                speak: function(text) {
+                    this.debugLog('Spreche: "' + text + '"', 'info');
+                    if (window.speechSynthesis) {
+                        window.speechSynthesis.cancel();
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = 'de-DE';
+                        utterance.rate = 0.95;
+                        window.speechSynthesis.speak(utterance);
+                    }
+                },
+                
+                init: function() {
+                    const self = this;
+                    try {
+                        this.debugLog('App-Start', 'success');
+                        this.debugLog('Browser: ' + navigator.userAgent.substring(0, 50), 'info');
+                        this.debugLog('HTTPS: ' + (location.protocol === 'https:' ? 'Ja' : 'Nein'), location.protocol === 'https:' ? 'success' : 'error');
+                        
+                        this.debugLog('Schritt 1: Datum', 'info');
+                        this.updateDate();
+                        
+                        this.debugLog('Schritt 2: Aufgaben laden', 'info');
+                        this.loadTasks();
+                        
+                        this.debugLog('Schritt 3: Tabs einrichten', 'info');
+                        // Tabs
+                        document.querySelectorAll('.tab').forEach(function(tab) {
+                            tab.addEventListener('click', function() {
+                                self.debugLog('Tab-Klick', 'info');
+                                const tabName = tab.getAttribute('data-tab');
+                                self.currentTab = tabName;
+                                document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+                                document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+                                tab.classList.add('active');
+                                document.getElementById(tabName).classList.add('active');
+                            });
+                        });
+                        
+                        this.debugLog('Schritt 4: Enter-Keys', 'info');
+                        
+                        // Enter-Keys
+                        document.getElementById('todayInput').addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') self.addTask('today');
+                        });
+                        document.getElementById('weekInput').addEventListener('keypress', function(e) {
+                            if (e.key === 'Enter') self.addTask('week');
+                        });
+                        
+                        // Mikrofon
+                        document.getElementById('micButton').addEventListener('click', function() {
+                            self.debugLog('Mikrofon geklickt', 'info');
+                            if (!self.recognition) {
+                                self.debugLog('Keine Spracherkennung verfügbar', 'error');
+                                return;
+                            }
+                            try {
+                                if (self.isListening) {
+                                    self.recognition.stop();
+                                } else {
+                                    self.recognition.start();
+                                }
+                            } catch (e) {
+                                self.debugLog('Fehler: ' + e.message, 'error');
+                            }
+                        });
+                        
+                        setTimeout(function() {
+                            self.initSpeechRecognition();
+                        }, 500);
+                        
+                        this.debugLog('Init abgeschlossen', 'success');
+                        
+                    } catch (e) {
+                        this.debugLog('KRITISCHER FEHLER: ' + e.message, 'error');
+                        this.debugLog('Stack: ' + e.stack, 'error');
+                    }
+                }
+            };
+            
+            window.appManager = appManager;
+            
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    appManager.init();
+                });
+            } else {
+                appManager.init();
+            }
+            
+        })();
+    </script>
+</body>
+</html>
