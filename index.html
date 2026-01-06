@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mein Planungsassistent</title>
+    <title>Mein Planungsassistent - Debug</title>
     <style>
         * {
             margin: 0;
@@ -35,8 +35,44 @@
         
         .date-display {
             color: #666;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             font-size: 14px;
+        }
+        
+        .debug-info {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .debug-info h4 {
+            color: #856404;
+            margin-bottom: 8px;
+        }
+        
+        .debug-log {
+            color: #856404;
+            font-family: monospace;
+            line-height: 1.6;
+        }
+        
+        .debug-log div {
+            padding: 2px 0;
+        }
+        
+        .debug-log .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .debug-log .success {
+            color: #28a745;
+            font-weight: bold;
         }
         
         .voice-control {
@@ -68,6 +104,11 @@
         .mic-button.listening {
             background: #e74c3c;
             animation: pulse 1.5s infinite;
+        }
+        
+        .mic-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
         }
         
         @keyframes pulse {
@@ -273,12 +314,17 @@
 </head>
 <body>
     <div class="container">
-        <h1>🗓️ Mein Planungsassistent</h1>
+        <h1>🗓️ Mein Planungsassistent (Debug)</h1>
         <div class="date-display" id="dateDisplay"></div>
+        
+        <div class="debug-info">
+            <h4>🔍 Debug-Informationen:</h4>
+            <div class="debug-log" id="debugLog"></div>
+        </div>
         
         <div class="voice-control">
             <button class="mic-button" id="micButton">🎤</button>
-            <div class="status" id="status">Klicke auf das Mikrofon zum Sprechen</div>
+            <div class="status" id="status">Initialisiere...</div>
         </div>
         
         <div class="help-box">
@@ -350,29 +396,58 @@
             week: []
         };
         
-        let recognition;
+        let recognition = null;
         let isListening = false;
         let currentTab = 'today';
+        let debugMessages = [];
+        
+        // Debug-Logging
+        function debugLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('de-DE');
+            debugMessages.push(`[${timestamp}] ${message}`);
+            
+            const logDiv = document.getElementById('debugLog');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = type;
+            messageDiv.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(messageDiv);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
         
         // Datum anzeigen
         function updateDate() {
             const now = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             document.getElementById('dateDisplay').textContent = now.toLocaleDateString('de-DE', options);
+            debugLog('Datum aktualisiert', 'success');
         }
         
         // Daten aus LocalStorage laden
         function loadTasks() {
-            const saved = localStorage.getItem('plannerTasks');
-            if (saved) {
-                tasks = JSON.parse(saved);
+            try {
+                const saved = localStorage.getItem('plannerTasks');
+                if (saved) {
+                    tasks = JSON.parse(saved);
+                    debugLog(`Aufgaben geladen: ${tasks.today.length} heute, ${tasks.week.length} diese Woche`, 'success');
+                } else {
+                    debugLog('Keine gespeicherten Aufgaben gefunden', 'info');
+                }
                 renderTasks();
+            } catch (error) {
+                debugLog(`Fehler beim Laden: ${error.message}`, 'error');
             }
         }
         
         // Daten in LocalStorage speichern
         function saveTasks() {
-            localStorage.setItem('plannerTasks', JSON.stringify(tasks));
+            try {
+                localStorage.setItem('plannerTasks', JSON.stringify(tasks));
+                debugLog('Aufgaben gespeichert', 'success');
+            } catch (error) {
+                debugLog(`Fehler beim Speichern: ${error.message}`, 'error');
+            }
         }
         
         // Aufgabe hinzufügen
@@ -390,6 +465,7 @@
                 input.value = '';
                 saveTasks();
                 renderTasks();
+                debugLog(`Aufgabe hinzugefügt: "${text}" (${type})`, 'success');
             }
         }
         
@@ -400,14 +476,18 @@
                 task.completed = !task.completed;
                 saveTasks();
                 renderTasks();
+                debugLog(`Aufgabe ${task.completed ? 'erledigt' : 'wieder geöffnet'}: "${task.text}"`, 'success');
             }
         }
         
         // Aufgabe löschen
         function deleteTask(type, id) {
+            const task = tasks[type].find(t => t.id === id);
+            const taskText = task ? task.text : 'unbekannt';
             tasks[type] = tasks[type].filter(t => t.id !== id);
             saveTasks();
             renderTasks();
+            debugLog(`Aufgabe gelöscht: "${taskText}"`, 'success');
         }
         
         // Aufgaben rendern
@@ -449,6 +529,7 @@
                 
                 tab.classList.add('active');
                 document.getElementById(tabName).classList.add('active');
+                debugLog(`Tab gewechselt zu: ${tabName}`, 'info');
             });
         });
         
@@ -461,29 +542,50 @@
             if (e.key === 'Enter') addTask('week');
         });
         
-        // Spracherkennung
+        // Spracherkennung initialisieren
         function initSpeechRecognition() {
-            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            debugLog('Starte Spracherkennung-Initialisierung...', 'info');
+            
+            // Prüfe Browser-Unterstützung
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                debugLog('FEHLER: Spracherkennung nicht verfügbar in diesem Browser', 'error');
+                document.getElementById('status').textContent = '❌ Spracherkennung nicht verfügbar';
+                document.getElementById('micButton').disabled = true;
+                return;
+            }
+            
+            debugLog('Spracherkennung wird unterstützt', 'success');
+            
+            try {
                 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
                 recognition = new SpeechRecognition();
+                debugLog('SpeechRecognition-Objekt erstellt', 'success');
+                
                 recognition.lang = 'de-DE';
                 recognition.continuous = false;
                 recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
                 
-                recognition.onstart = () => {
+                debugLog('Spracherkennung konfiguriert: de-DE, continuous=false', 'success');
+                
+                recognition.onstart = function() {
+                    debugLog('🎤 Spracherkennung GESTARTET', 'success');
                     isListening = true;
                     document.getElementById('micButton').classList.add('listening');
                     document.getElementById('status').textContent = '🎤 Ich höre zu...';
                 };
                 
-                recognition.onend = () => {
+                recognition.onend = function() {
+                    debugLog('⏹️ Spracherkennung BEENDET', 'info');
                     isListening = false;
                     document.getElementById('micButton').classList.remove('listening');
                     document.getElementById('status').textContent = 'Klicke auf das Mikrofon zum Sprechen';
                 };
                 
-                recognition.onresult = (event) => {
+                recognition.onresult = function(event) {
                     const transcript = event.results[0][0].transcript;
+                    const confidence = event.results[0][0].confidence;
+                    debugLog(`Erkannt: "${transcript}" (Sicherheit: ${(confidence * 100).toFixed(0)}%)`, 'success');
                     document.getElementById('status').textContent = `💬 Verstanden: "${transcript}"`;
                     
                     setTimeout(() => {
@@ -491,114 +593,19 @@
                     }, 500);
                 };
                 
-                recognition.onerror = (event) => {
-                    console.error('Spracherkennungsfehler:', event.error);
-                    document.getElementById('status').textContent = 'Fehler bei der Spracherkennung. Bitte erneut versuchen.';
-                };
-                
-            } else {
-                document.getElementById('status').textContent = '⚠️ Spracherkennung nicht verfügbar. Bitte verwende Chrome oder Safari.';
-            }
-        }
-        
-        // Sprachbefehl verarbeiten
-        function processVoiceCommand(text) {
-            console.log('Verarbeite Befehl:', text);
-            
-            // Aufgaben vorlesen
-            if (text.includes('lies') || text.includes('was steht') || text.includes('welche aufgaben') || 
-                text.includes('vorlesen') || text.includes('zeig mir')) {
-                
-                if (text.includes('woche')) {
-                    readTasksList('week');
-                } else {
-                    readTasksList('today');
-                }
-                return;
-            }
-            
-            // Statistik abfragen
-            if (text.includes('wie viele') || text.includes('übersicht') || text.includes('zusammenfassung')) {
-                const todayTotal = tasks.today.length;
-                const todayDone = tasks.today.filter(t => t.completed).length;
-                const weekTotal = tasks.week.length;
-                const weekDone = tasks.week.filter(t => t.completed).length;
-                
-                speak(`Du hast ${todayTotal} Aufgaben für heute, davon sind ${todayDone} erledigt. 
-                       Für die Woche hast du ${weekTotal} Aufgaben, davon sind ${weekDone} erledigt.`);
-                return;
-            }
-            
-            // Aufgabe als erledigt markieren
-            if (text.includes('markiere') || text.includes('erledigt') || text.includes('abhaken')) {
-                const taskText = text
-                    .replace(/markiere|als erledigt|erledigt|abhaken/gi, '')
-                    .trim();
-                
-                if (completeTaskByName(taskText)) {
-                    speak(`Aufgabe "${taskText}" wurde als erledigt markiert.`);
-                } else {
-                    speak(`Ich konnte keine Aufgabe mit diesem Namen finden.`);
-                }
-                return;
-            }
-            
-            // Aufgabe löschen
-            if (text.includes('lösche') || text.includes('entferne') || text.includes('streiche')) {
-                const taskText = text
-                    .replace(/lösche|entferne|streiche|aufgabe/gi, '')
-                    .trim();
-                
-                if (deleteTaskByName(taskText)) {
-                    speak(`Aufgabe "${taskText}" wurde gelöscht.`);
-                } else {
-                    speak(`Ich konnte keine Aufgabe mit diesem Namen finden.`);
-                }
-                return;
-            }
-            
-            // Aufgabe hinzufügen
-            if (text.includes('füge hinzu') || text.includes('neue aufgabe') || 
-                text.includes('erstelle') || text.includes('add')) {
-                
-                let taskText = text
-                    .replace(/füge hinzu|neue aufgabe|erstelle|add|aufgabe/gi, '')
-                    .replace(/:/g, '')
-                    .trim();
-                
-                let targetType = 'today';
-                
-                if (text.includes('woche') || text.includes('diese woche')) {
-                    targetType = 'week';
-                    taskText = taskText.replace(/woche|diese woche/gi, '').trim();
-                } else if (text.includes('heute')) {
-                    taskText = taskText.replace(/heute/gi, '').trim();
-                }
-                
-                if (taskText) {
-                    tasks[targetType].push({
-                        id: Date.now(),
-                        text: taskText,
-                        completed: false
-                    });
-                    saveTasks();
-                    renderTasks();
+                recognition.onerror = function(event) {
+                    debugLog(`❌ FEHLER: ${event.error} - ${event.message || 'Keine Details'}`, 'error');
                     
-                    const timeframe = targetType === 'today' ? 'heute' : 'für die Woche';
-                    speak(`Aufgabe "${taskText}" wurde ${timeframe} hinzugefügt.`);
-                } else {
-                    speak('Ich konnte keine Aufgabe verstehen. Bitte versuche es erneut.');
-                }
-                return;
-            }
-            
-            // Standardmäßig als neue Aufgabe für heute hinzufügen
-            if (text.length > 3) {
-                tasks.today.push({
-                    id: Date.now(),
-                    text: text,
-                    completed: false
-                });
-                saveTasks();
-                renderTasks();
-                speak(`Aufgab
+                    let errorMsg = 'Fehler: ';
+                    switch(event.error) {
+                        case 'no-speech':
+                            errorMsg += 'Keine Sprache erkannt';
+                            break;
+                        case 'audio-capture':
+                            errorMsg += 'Kein Mikrofon gefunden';
+                            break;
+                        case 'not-allowed':
+                            errorMsg += 'Mikrofonzugriff verweigert';
+                            break;
+                        case 'network':
+                            error
